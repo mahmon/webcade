@@ -1,24 +1,27 @@
-const canvas = document.getElementById('breakoutCanvas');
+const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const canvasW = canvas.width;
 const canvasH = canvas.height;
 
-let gameTitle = 'BREAKOUT';
-let gameOverTitle = 'GAME OVER';
-let playInstructions = 'Hit Space to play';
+const gameTitle = 'BREAKOUT';
+const startIntructions = 'Hit Enter to play'
+const gameRunning = 'this is game running';
+const gameOverTitle = 'GAME OVER';
+const replayIntructions = 'Hit Enter to play again'
 
-let gameStarted = false;
+const spriteColor = '#dd1111';
+const textColor = '#dddddd';
+
 let gameOver = false;
-let leftPressed = false;
 let rightPressed = false;
-let spriteColor = '#dd1111';
-let textColor = '#dddddd';
 
 let ballRadius = 10;
 let randBallX = (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
 let randDX = Math.round(Math.random()) * 2 - 1;
-let ballX = randBallX;
-let ballY = canvasH + 2 * ballRadius;
+// let ballX = randBallX;
+// let ballY = canvasH + 2 * ballRadius;
+let ballX = 50;
+let ballY = 50;
 let ballLeftEdge = ballX - ballRadius;
 let ballRightEdge = ballX + ballRadius;
 let ballTopEdge = ballY - ballRadius;
@@ -26,37 +29,139 @@ let ballBottomEdge = ballY + ballRadius;
 let dx = 4.0 * randDX;
 let dy = -dx;
 
-let paddleW = 80;
-let paddleH = 10;
-let paddleX = (canvasW - paddleW) / 2;
-let paddleY = canvasH - paddleH;
-
 document.addEventListener('keydown', keyDownHandler, false);
 document.addEventListener('keyup', keyUpHandler, false);
 
 function keyDownHandler(e) {
   if (e.key == 'Right' || e.key == 'ArrowRight') {
     rightPressed = true;
-  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
-    leftPressed = true;
-  } else if (e.key === ' ') {
-    if (gameStarted === false) {
-      gameStarted = true;
-      runGame();
-    }
-  } else if (e.key === 'Enter') {
-    if (gameOver === true) {
-      document.location.reload();
-    }
   }
 }
 
 function keyUpHandler(e) {
   if (e.key == 'Right' || e.key == 'ArrowRight') {
     rightPressed = false;
-  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
-    leftPressed = false;
   }
+}
+
+/*
+ * STATE MACHINE:
+ * Manage game states between off, ready, gameRunning and gameOver
+ */
+function createMachine(stateMachineDefinition) {
+  const machine = {
+    value: stateMachineDefinition.initialState,
+    transition(currentState, event) {
+      const currentStateDefinition = stateMachineDefinition[currentState];
+      const destinationTransition = currentStateDefinition.transitions[event];
+      if (!destinationTransition) {
+        return;
+      }
+      const destinationState = destinationTransition.target
+      const destinationStateDefinition = stateMachineDefinition[destinationState]
+      currentStateDefinition.actions.onExit();
+      destinationStateDefinition.actions.onEnter();
+      machine.value = destinationState;
+      return machine.value
+    }
+  };
+  return machine;
+}
+
+const machine = createMachine({
+  initialState: 'off',
+  off: {
+    actions: {
+      onEnter() {},
+      onExit() {}
+    },
+    transitions: {
+      step: {
+        target: 'ready'
+      }
+    }
+  },
+  ready: {
+    actions: {
+      onEnter() {
+        drawMessageToScreen(gameTitle, -10);
+        drawMessageToScreen(startIntructions, 10);
+        document.addEventListener('keydown', listenForStartGame, true);
+      },
+      onExit() {
+        ctx.clearRect(0, 0, canvasW, canvasH);
+        document.removeEventListener('keydown', listenForStartGame, true);
+      }
+    },
+    transitions: {
+      step: {
+        target: 'gameRunning'
+      }
+    }
+  },
+  gameRunning: {
+    actions: {
+      onEnter() {
+        document.addEventListener('keydown', listenForPlayerInput, true);
+        drawGame();
+      },
+      onExit() {
+        document.removeEventListener('keydown', listenForPlayerInput, true);
+        ctx.clearRect(0, 0, canvasW, canvasH);
+      }
+    },
+    transitions: {
+      step: {
+        target: 'gameOver',
+      }
+    }
+  },
+  gameOver: {
+    actions: {
+      onEnter() {
+        drawMessageToScreen(gameOverTitle, -10);
+        drawMessageToScreen(replayIntructions, 10);
+        document.addEventListener('keydown', listenForReplayGame, true);
+      },
+      onExit() {
+        ctx.clearRect(0, 0, canvasW, canvasH);
+        document.removeEventListener('keydown', listenForReplayGame, true);
+      }
+    },
+    transitions: {
+      step: {
+        target: 'ready',
+      }
+    }
+  }
+});
+
+function listenForStartGame(e) {
+  if (e.key == 'Enter') {
+    gameState = machine.transition(gameState, 'step'); // gameRunning
+  }
+}
+
+function listenForPlayerInput(e) {
+  // todo ending game on right arrow for testing
+  if (e.key == ' ') {
+    gameState = machine.transition(gameState, 'step'); // gameOver
+  }
+}
+
+function listenForReplayGame(e) {
+  if (e.key == 'Enter') {
+    gameState = machine.transition(gameState, 'step'); // ready
+  }
+}
+
+function drawMessageToScreen(msg, shiftY) {
+  let x = canvasW / 2;
+  let y = (canvasH / 2) + shiftY;
+  ctx.textAlign = 'center';
+  ctx.font = '12px Arial';
+  ctx.fillStyle = textColor;
+  ctx.fillText(msg, x, y);
 }
 
 function drawBall() {
@@ -67,96 +172,11 @@ function drawBall() {
   ctx.closePath();
 }
 
-function moveBall() {
-  ballX += dx;
-  ballY += dy;
-  ballLeftEdge = ballX - ballRadius;
-  ballRightEdge = ballX + ballRadius;
-  ballTopEdge = ballY - ballRadius;
-  ballBottomEdge = ballY + ballRadius;
-}
-
-function drawPaddle() {
-  ctx.beginPath();
-  ctx.rect(paddleX, paddleY, paddleW, paddleH);
-  ctx.fillStyle = spriteColor;
-  ctx.fill();
-  ctx.closePath();
-}
-
-function checkBoundaryCollision() {
-  if (ballRightEdge >= canvasW || ballLeftEdge <= 0) {
-    dx = -dx;
-  } else if (ballTopEdge <= 0) {
-    dy = -dy;
-  }
-}
-
-function checkPaddleCollision() {
-  if (dy > 0 && ballBottomEdge >= canvasH - paddleH) {
-    if (ballLeftEdge >= paddleX && ballRightEdge <= paddleX + paddleW) {
-      dy = -dy;
-    } else {
-      if (ballTopEdge > canvasH + ballRadius) {
-        gameOver = true;
-      }
-    }
-  }
-}
-
-function checkPlayerInput() {
-  if (rightPressed) {
-    paddleX += 6;
-    if (paddleX + paddleW > canvasW) {
-      paddleX = canvasW - paddleW;
-    }
-  } else if (leftPressed) {
-    paddleX += -6;
-    if (paddleX < 0) {
-      paddleX = 0;
-    }
-  }
-}
-
-function drawMessage(text, yPush) {
-  let x = (canvasW / 2);
-  let y = canvasH / 2 + yPush
-  ctx.textAlign = 'center';
-  ctx.font = '25px Arial';
-  ctx.fillStyle = textColor;
-  ctx.fillText(text, x, y);
-}
-
-function drawWelcomeMessage() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  drawMessage(gameTitle, 0);
-  drawMessage(playInstructions, 30);
-}
-
-function drawGameOverMessage() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  drawMessage(gameOverTitle, 0);
-  drawMessage(playInstructions, 30);
-}
-
 function drawGame() {
   ctx.clearRect(0, 0, canvasW, canvasH);
   drawBall();
-  moveBall();
-  drawPaddle();
-  checkBoundaryCollision();
-  checkPaddleCollision();
-  checkPlayerInput();
+  //requestAnimationFrame(drawGame);
 }
 
-function runGame() {
-  console.log(gameOver);
-  if (!gameOver) {
-    drawGame();
-    requestAnimationFrame(runGame);
-  } else if (gameOver) {
-    drawGameOverMessage();
-  }
-}
-
-drawWelcomeMessage();
+let gameState = machine.value; // off
+gameState = machine.transition(gameState, 'step'); // ready
