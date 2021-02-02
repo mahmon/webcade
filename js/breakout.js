@@ -4,45 +4,32 @@ const canvasW = canvas.width;
 const canvasH = canvas.height;
 
 const gameTitle = 'BREAKOUT';
-const startIntructions = 'Hit Enter to play'
-const gameRunning = 'this is game running';
 const gameOverTitle = 'GAME OVER';
-const replayIntructions = 'Hit Enter to play again'
+const startIntructions = 'Press Enter to play';
+const replayIntructions = 'Press Enter to play again';
 
 const spriteColor = '#dd1111';
 const textColor = '#dddddd';
-
-let gameOver = false;
-let rightPressed = false;
+const startDX = 2.0;
 
 let ballRadius = 10;
-let randBallX = (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
-let randDX = Math.round(Math.random()) * 2 - 1;
-// let ballX = randBallX;
-// let ballY = canvasH + 2 * ballRadius;
-let ballX = 50;
-let ballY = 50;
-let ballLeftEdge = ballX - ballRadius;
-let ballRightEdge = ballX + ballRadius;
+let randX = (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
+let randSign = Math.round(Math.random()) * 2 - 1;
+let ballX = randX;
+let ballY = canvasH - ballRadius;
 let ballTopEdge = ballY - ballRadius;
+let ballRightEdge = ballX + ballRadius;
 let ballBottomEdge = ballY + ballRadius;
-let dx = 4.0 * randDX;
-let dy = -dx;
+let ballLeftEdge = ballX - ballRadius;
+let dx = startDX * randSign;
+let dy = -startDX;
 
-document.addEventListener('keydown', keyDownHandler, false);
-document.addEventListener('keyup', keyUpHandler, false);
+let paddleW = 80;
+let paddleH = 10;
+let paddleX = (canvasW - paddleW) / 2;
+let paddleY = canvasH - paddleH;
 
-function keyDownHandler(e) {
-  if (e.key == 'Right' || e.key == 'ArrowRight') {
-    rightPressed = true;
-  }
-}
-
-function keyUpHandler(e) {
-  if (e.key == 'Right' || e.key == 'ArrowRight') {
-    rightPressed = false;
-  }
-}
+let gameOver = true;
 
 /*
  * STATE MACHINE:
@@ -57,12 +44,12 @@ function createMachine(stateMachineDefinition) {
       if (!destinationTransition) {
         return;
       }
-      const destinationState = destinationTransition.target
-      const destinationStateDefinition = stateMachineDefinition[destinationState]
+      const destinationState = destinationTransition.target;
+      const destinationStateDefinition = stateMachineDefinition[destinationState];
       currentStateDefinition.actions.onExit();
       destinationStateDefinition.actions.onEnter();
       machine.value = destinationState;
-      return machine.value
+      return machine.value;
     }
   };
   return machine;
@@ -84,13 +71,10 @@ const machine = createMachine({
   ready: {
     actions: {
       onEnter() {
-        drawMessageToScreen(gameTitle, -10);
-        drawMessageToScreen(startIntructions, 10);
-        document.addEventListener('keydown', listenForStartGame, true);
+        runStartScreen();
       },
       onExit() {
-        ctx.clearRect(0, 0, canvasW, canvasH);
-        document.removeEventListener('keydown', listenForStartGame, true);
+        stopStartScreen();
       }
     },
     transitions: {
@@ -102,12 +86,12 @@ const machine = createMachine({
   gameRunning: {
     actions: {
       onEnter() {
-        document.addEventListener('keydown', listenForPlayerInput, true);
-        drawGame();
+        gameOver = false;
+        runGameLoop();
       },
       onExit() {
-        document.removeEventListener('keydown', listenForPlayerInput, true);
-        ctx.clearRect(0, 0, canvasW, canvasH);
+        gameOver = true;
+        resetBall();
       }
     },
     transitions: {
@@ -119,13 +103,10 @@ const machine = createMachine({
   gameOver: {
     actions: {
       onEnter() {
-        drawMessageToScreen(gameOverTitle, -10);
-        drawMessageToScreen(replayIntructions, 10);
-        document.addEventListener('keydown', listenForReplayGame, true);
+        runGameOverScreen();
       },
       onExit() {
-        ctx.clearRect(0, 0, canvasW, canvasH);
-        document.removeEventListener('keydown', listenForReplayGame, true);
+        stopGameOverScreen();
       }
     },
     transitions: {
@@ -136,22 +117,12 @@ const machine = createMachine({
   }
 });
 
-function listenForStartGame(e) {
+/*
+ * Helper methods
+ */
+function transitionStateMachineOnEnter(e) {
   if (e.key == 'Enter') {
-    gameState = machine.transition(gameState, 'step'); // gameRunning
-  }
-}
-
-function listenForPlayerInput(e) {
-  // todo ending game on right arrow for testing
-  if (e.key == ' ') {
-    gameState = machine.transition(gameState, 'step'); // gameOver
-  }
-}
-
-function listenForReplayGame(e) {
-  if (e.key == 'Enter') {
-    gameState = machine.transition(gameState, 'step'); // ready
+    gameState = machine.transition(gameState, 'step');
   }
 }
 
@@ -159,24 +130,120 @@ function drawMessageToScreen(msg, shiftY) {
   let x = canvasW / 2;
   let y = (canvasH / 2) + shiftY;
   ctx.textAlign = 'center';
-  ctx.font = '12px Arial';
+  ctx.font = '24px Arial';
   ctx.fillStyle = textColor;
   ctx.fillText(msg, x, y);
 }
 
+/*
+ * Start Screen
+ */
+function runStartScreen() {
+  drawMessageToScreen(gameTitle, -20);
+  drawMessageToScreen(startIntructions, 20);
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function stopStartScreen() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+/*
+ * Game Loop
+ */
+
+function movePaddle(e) {
+  if (e.key == 'Right' || e.key == 'ArrowRight') {
+    console.log('right paddle');
+  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
+    console.log('left paddle');
+  }
+}
+
+
+
+function resetBall() {
+  randX = (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
+  randSign = Math.round(Math.random()) * 2 - 1;
+  ballX = randX;
+  ballY = canvasH - ballRadius;
+  ballTopEdge = ballY - ballRadius;
+  ballRightEdge = ballX + ballRadius;
+  ballBottomEdge = ballY + ballRadius;
+  ballLeftEdge = ballX - ballRadius;
+  dx = startDX * randSign;
+  dy = -startDX;
+}
+
 function drawBall() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
   ctx.beginPath();
-  ctx.arc(ballX, ballY, ballRadius, 0, 2 * Math.PI);
+  ctx.arc(ballX, ballY, 10, 0, 2 * Math.PI);
   ctx.fillStyle = spriteColor;
   ctx.fill();
   ctx.closePath();
 }
 
-function drawGame() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  drawBall();
-  //requestAnimationFrame(drawGame);
+function drawPaddle() {
+  ctx.beginPath();
+  ctx.rect(paddleX, paddleY, paddleW, paddleH);
+  ctx.fillStyle = spriteColor;
+  ctx.fill();
+  ctx.closePath();
 }
 
+function moveBall() {
+  ballX += dx;
+  ballY += dy;
+  ballTopEdge = ballY - ballRadius;
+  ballRightEdge = ballX + ballRadius;
+  ballBottomEdge = ballY + ballRadius;
+  ballLeftEdge = ballX - ballRadius;
+}
+
+function movePaddle() {
+  //
+}
+
+function checkForBoundaryCollision() {
+  if (ballRightEdge >= canvasW || ballLeftEdge <= 0) {
+    dx = -dx;
+  } else if (ballTopEdge <= 0) {
+    dy = -dy;
+  } else if (ballBottomEdge >= canvasH) {
+    gameOver = true;
+    gameState = machine.transition(gameState, 'step');
+  }
+}
+
+function runGameLoop() {
+  drawBall();
+  drawPaddle();
+  moveBall();
+  movePaddle();
+  checkForBoundaryCollision();
+  if (!gameOver) {
+    requestAnimationFrame(runGameLoop);
+  }
+}
+
+/*
+ * Game Over Screen
+ */
+function runGameOverScreen() {
+  drawMessageToScreen(gameOverTitle, -20);
+  drawMessageToScreen(replayIntructions, 20);
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function stopGameOverScreen() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+/*
+ * Start State machine running, and set to ready postion
+ */
 let gameState = machine.value; // off
 gameState = machine.transition(gameState, 'step'); // ready

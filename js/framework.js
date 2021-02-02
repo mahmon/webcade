@@ -10,8 +10,15 @@ const replayIntructions = 'Press Enter to play again';
 
 const spriteColor = '#dd1111';
 const textColor = '#dddddd';
+const startDX = 1.0;
 
-let gameRunning = 'this is game running';
+let gameOver = true;
+
+// sprite start data
+let spriteX = canvasW / 2;
+let spriteY = canvasH / 2;
+let dx = startDX;
+let dy = -dx;
 
 /*
  * STATE MACHINE:
@@ -37,9 +44,6 @@ function createMachine(stateMachineDefinition) {
   return machine;
 }
 
-/*
- * State machine API
- */
 const machine = createMachine({
   initialState: 'off',
   off: {
@@ -59,7 +63,7 @@ const machine = createMachine({
         runStartScreen();
       },
       onExit() {
-        stopStartScreen();
+        clearStartScreen();
       }
     },
     transitions: {
@@ -71,15 +75,10 @@ const machine = createMachine({
   gameRunning: {
     actions: {
       onEnter() {
-        console.log('gameRunning: onEnter');
-        drawMessageToScreen('game is running', -10);
-        drawMessageToScreen('hit enter to simulate losing', 10);
-        document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+        runGame();
       },
       onExit() {
-        console.log('gameRunning: onExit');
-        ctx.clearRect(0, 0, canvasW, canvasH);
-        document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+        resetGame();
       }
     },
     transitions: {
@@ -94,7 +93,7 @@ const machine = createMachine({
         runGameOverScreen();
       },
       onExit() {
-        stopGameOverScreen();
+        clearGameOverScreen();
       }
     },
     transitions: {
@@ -105,41 +104,95 @@ const machine = createMachine({
   }
 });
 
-function transitionStateMachineOnEnter(e) {
-  if (e.key == 'Enter') {
-    gameState = machine.transition(gameState, 'step');
-  }
+/*
+ * Start Screen
+ */
+function runStartScreen() {
+  drawMessageToCenterOfScreen(gameTitle, -20);
+  drawMessageToCenterOfScreen(startIntructions, 20);
+  addStartScreenListeners();
 }
 
-function drawMessageToScreen(msg, shiftY) {
+function addStartScreenListeners() {
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function removeStartScreenListeners() {
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function clearStartScreen() {
+  removeStartScreenListeners();
+  clearCanvas();
+}
+
+/*
+ * Game Loop
+ */
+function runGame() {
+  addUserInputListeners();
+  runGameLoop();
+}
+
+function runGameLoop() {
+  console.log('draw the game');
+}
+
+function addUserInputListeners() {
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function removeUserInputListeners() {
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function resetGame() {
+  removeUserInputListeners();
+  clearCanvas();
+}
+
+/*
+ * Game Over Screen
+ */
+function runGameOverScreen() {
+  drawMessageToCenterOfScreen(gameOverTitle, -20);
+  drawMessageToCenterOfScreen(replayIntructions, 20);
+  addGameOverScreenListeners();
+}
+
+function addGameOverScreenListeners() {
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function removeGameOverScreenListeners() {
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function clearGameOverScreen() {
+  removeGameOverScreenListeners();
+  clearCanvas();
+}
+
+/*
+ * Helper methods
+ */
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
+}
+
+function drawMessageToCenterOfScreen(msg, shiftY) {
   let x = canvasW / 2;
   let y = (canvasH / 2) + shiftY;
   ctx.textAlign = 'center';
-  ctx.font = '12px Arial';
+  ctx.font = '24px Arial';
   ctx.fillStyle = textColor;
   ctx.fillText(msg, x, y);
 }
 
-function runStartScreen() {
-  drawMessageToScreen(gameTitle, -10);
-  drawMessageToScreen(startIntructions, 10);
-  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
-function stopStartScreen() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
-function runGameOverScreen() {
-  drawMessageToScreen(gameOverTitle, -10);
-  drawMessageToScreen(replayIntructions, 10);
-  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
-function stopGameOverScreen() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+function transitionStateMachineOnEnter(e) {
+  if (e.key == 'Enter') {
+    gameState = machine.transition(gameState, 'step');
+  }
 }
 
 /*
