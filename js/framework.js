@@ -8,17 +8,33 @@ const gameOverTitle = 'GAME OVER';
 const startIntructions = 'Press Enter to play';
 const replayIntructions = 'Press Enter to play again';
 
-const spriteColor = '#dd1111';
-const textColor = '#dddddd';
-const startDX = 1.0;
+const titleFont = '24px Arial';
+const uiFont = '14px Arial';
+const uiY = 20;
+const left = 'left';
+const center = 'center';
+const right = 'right';
 
+const spriteColour = '#dd1111';
+const titleTextColour = '#dddd11';
+const uiTextColour = '#00aaff';
+
+const startDX = 3.0;
+const startLives = 3;
+
+// Game Start Settings
 let gameOver = true;
+let score = 0;
+let highScore = 0;
+let lives = startLives;
 
-// sprite start data
+let leftPressed = false;
+let rightPressed = false;
+
 let spriteX = canvasW / 2;
 let spriteY = canvasH / 2;
 let dx = startDX;
-let dy = -dx;
+let dy = -startDX;
 
 /*
  * STATE MACHINE:
@@ -78,7 +94,7 @@ const machine = createMachine({
         runGame();
       },
       onExit() {
-        resetGame();
+        stopGame();
       }
     },
     transitions: {
@@ -108,9 +124,20 @@ const machine = createMachine({
  * Start Screen
  */
 function runStartScreen() {
+  drawHighScore();
+  drawWelcomeMessage();
+  addStartScreenListeners();
+}
+
+function drawWelcomeMessage() {
   drawMessageToCenterOfScreen(gameTitle, -20);
   drawMessageToCenterOfScreen(startIntructions, 20);
-  addStartScreenListeners();
+}
+
+function drawHighScore() {
+  let msg = `High Score: ${highScore}`;
+  let x = canvasW / 2;
+  drawMessageToScreen(msg, x, uiY, center, uiFont, uiTextColour);
 }
 
 function addStartScreenListeners() {
@@ -130,25 +157,134 @@ function clearStartScreen() {
  * Game Loop
  */
 function runGame() {
+  gameOver = false;
   addUserInputListeners();
   runGameLoop();
 }
 
-function runGameLoop() {
-  console.log('draw the game');
-}
-
 function addUserInputListeners() {
-  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+  document.addEventListener('keydown', respondToKeyDown, true);
+  document.addEventListener('keyup', respondToKeyUp, true);
 }
 
 function removeUserInputListeners() {
-  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+  document.removeEventListener('keydown', respondToKeyDown, true);
+  document.removeEventListener('keyup', respondToKeyUp, true);
 }
 
-function resetGame() {
+function respondToKeyDown(e) {
+  if (e.key == 'Right' || e.key == 'ArrowRight') {
+    rightPressed = true;
+  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
+    leftPressed = true;
+  }
+}
+
+function respondToKeyUp(e) {
+  if (e.key == 'Right' || e.key == 'ArrowRight') {
+    rightPressed = false;
+  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
+    leftPressed = false;
+  }
+}
+
+function runGameLoop() {
+  if (!gameOver) {
+    clearCanvas();
+    respondToUserInput();
+    calculateCurrentScore();
+    moveSprites();
+    drawFrame();
+    checkForLifeLossConditions();
+    checkForGameOver();
+    requestAnimationFrame(runGameLoop);
+  }
+}
+
+function respondToUserInput() {
+  if (rightPressed) {
+    spriteX += dx;
+  }
+  if (leftPressed) {
+    spriteX -= dx;
+  }
+}
+
+function calculateCurrentScore() {
+  score += 1;
+}
+
+function moveSprites() {
+  spriteY += dy;
+}
+
+function drawFrame() {
+  drawScore();
+  drawHighScore();
+  drawLives();
+  drawSprites();
+}
+
+function drawScore() {
+  let msg = `Score: ${score}`;
+  let x = 10;
+  drawMessageToScreen(msg, x, uiY, left, uiFont, uiTextColour);
+}
+
+function drawLives() {
+  let msg = `Lives: ${lives-1}`;
+  let x = canvasW - 10;
+  drawMessageToScreen(msg, x, uiY, right, uiFont, uiTextColour);
+}
+
+function drawSprites() {
+  ctx.beginPath();
+  ctx.arc(spriteX, spriteY, 10, 0, 2 * Math.PI);
+  ctx.fillStyle = spriteColour;
+  ctx.fill();
+  ctx.closePath();
+}
+
+function checkForLifeLossConditions() {
+  if (spriteY < 0) {
+    lives -= 1;
+    resetAfterLifeLost();
+  }
+}
+
+function resetAfterLifeLost() {
+  leftPressed = false;
+  rightPressed = false;
+  spriteX = canvasW / 2;
+  spriteY = canvasH / 2;
+  dx = startDX;
+  dy = -startDX;
+}
+
+function checkForGameOver() {
+  if (lives == 0) {
+    gameOver = true;
+    gameState = machine.transition(gameState, 'step'); // gameOver
+  }
+}
+
+function stopGame() {
   removeUserInputListeners();
-  clearCanvas();
+  resetGameStartSettings();
+}
+
+function resetGameStartSettings() {
+  leftPressed = false;
+  rightPressed = false;
+  spriteX = canvasW / 2;
+  spriteY = canvasH / 2;
+  dx = startDX;
+  dy = -startDX;
+  if (score > highScore) {
+    highScore = score;
+  }
+  score = 0;
+  lives = startLives;
 }
 
 /*
@@ -164,35 +300,39 @@ function addGameOverScreenListeners() {
   document.addEventListener('keydown', transitionStateMachineOnEnter, true);
 }
 
-function removeGameOverScreenListeners() {
-  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
 function clearGameOverScreen() {
   removeGameOverScreenListeners();
   clearCanvas();
 }
 
+function removeGameOverScreenListeners() {
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
 /*
  * Helper methods
  */
-function clearCanvas() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
+function drawMessageToScreen(msg, x, y, align, font, colour) {
+  ctx.textAlign = align;
+  ctx.font = font;
+  ctx.fillStyle = colour;
+  ctx.fillText(msg, x, y);
 }
 
 function drawMessageToCenterOfScreen(msg, shiftY) {
   let x = canvasW / 2;
   let y = (canvasH / 2) + shiftY;
-  ctx.textAlign = 'center';
-  ctx.font = '24px Arial';
-  ctx.fillStyle = textColor;
-  ctx.fillText(msg, x, y);
+  drawMessageToScreen(msg, x, y, center, titleFont, titleTextColour)
 }
 
 function transitionStateMachineOnEnter(e) {
   if (e.key == 'Enter') {
     gameState = machine.transition(gameState, 'step');
   }
+}
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
 }
 
 /*
