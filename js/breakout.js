@@ -8,28 +8,389 @@ const gameOverTitle = 'GAME OVER';
 const startIntructions = 'Press Enter to play';
 const replayIntructions = 'Press Enter to play again';
 
-const spriteColor = '#dd1111';
-const textColor = '#dddddd';
-const startDX = 2.0;
+const titleFont = '24px Arial';
+const uiFont = '14px Arial';
+const uiY = 20;
+const left = 'left';
+const center = 'center';
+const right = 'right';
 
-let ballRadius = 10;
-let randX = (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
-let randSign = Math.round(Math.random()) * 2 - 1;
-let ballX = randX;
-let ballY = canvasH - ballRadius;
-let ballTopEdge = ballY - ballRadius;
-let ballRightEdge = ballX + ballRadius;
-let ballBottomEdge = ballY + ballRadius;
-let ballLeftEdge = ballX - ballRadius;
-let dx = startDX * randSign;
-let dy = -startDX;
+const spriteColour = '#dd1111';
+const titleTextColour = '#dddd11';
+const uiTextColour = '#00aaff';
 
-let paddleW = 80;
-let paddleH = 10;
-let paddleX = (canvasW - paddleW) / 2;
-let paddleY = canvasH - paddleH;
+const gameOverStart = true;
+const scoreStart = 0;
+const highScoreStart = 0;
+const startLives = 3;
 
-let gameOver = true;
+const ballRadius = 10;
+const ballStartY = canvasH - ballRadius;
+const startDelta = 1.0;
+
+const paddleW = 80;
+const paddleH = 10;
+const startPaddleX = (canvasW - paddleW) / 2;
+const startPaddleY = canvasH - paddleH;
+const startPaddleDX = 5 * startDelta;
+
+const brickW = 55;
+const brickH = 20;
+const brickPadding = 10;
+const brickOffsetTop = 30;
+const brickOffsetLeft = 10;
+const brickCenterShift = 8;
+
+// Game Start Settings
+let gameOver = gameOverStart;
+let score = scoreStart;
+let highScore = highScoreStart;
+let lives = startLives;
+
+let leftPressed = false;
+let rightPressed = false;
+
+let ballX = generateRandomXStartValue();
+let ballY = ballStartY;
+let dx = startDelta * generateRandomSign();
+let dy = -startDelta;
+
+let paddleX = startPaddleX
+let paddleY = startPaddleY
+let paddleDX = startPaddleDX;
+
+let brickColumnCount = 7;
+let brickRowCount = 3;
+let bricks = [];
+for (let c = 0; c < brickColumnCount; c++) {
+  bricks[c] = [];
+  for (let r = 0; r < brickRowCount; r++) {
+    bricks[c][r] = {
+      x: 0,
+      y: 0,
+      status: 1
+    }
+  }
+}
+
+/*
+ * Start Screen
+ */
+function runStartScreen() {
+  drawHighScore();
+  drawWelcomeMessage();
+  addStartScreenListeners();
+}
+
+function drawWelcomeMessage() {
+  drawMessageToCenterOfScreen(gameTitle, -20);
+  drawMessageToCenterOfScreen(startIntructions, 20);
+}
+
+function drawHighScore() {
+  let msg = `High Score: ${highScore}`;
+  let x = canvasW / 2;
+  drawMessageToScreen(msg, x, uiY, center, uiFont, uiTextColour);
+}
+
+function addStartScreenListeners() {
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function removeStartScreenListeners() {
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function clearStartScreen() {
+  removeStartScreenListeners();
+  clearCanvas();
+}
+
+/*
+ * Game Loop
+ */
+function runGame() {
+  gameOver = false;
+  addUserInputListeners();
+  generateXYValuesForBrickArray();
+  runGameLoop();
+}
+
+function addUserInputListeners() {
+  document.addEventListener('keydown', respondToKeyDown, true);
+  document.addEventListener('keyup', respondToKeyUp, true);
+}
+
+function removeUserInputListeners() {
+  document.removeEventListener('keydown', respondToKeyDown, true);
+  document.removeEventListener('keyup', respondToKeyUp, true);
+}
+
+function respondToKeyDown(e) {
+  if (e.key == 'Right' || e.key == 'ArrowRight') {
+    rightPressed = true;
+  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
+    leftPressed = true;
+  }
+}
+
+function respondToKeyUp(e) {
+  if (e.key == 'Right' || e.key == 'ArrowRight') {
+    rightPressed = false;
+  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
+    leftPressed = false;
+  }
+}
+
+function generateXYValuesForBrickArray() {
+  for (let c = 0; c < brickColumnCount; c++) {
+    for (var r = 0; r < brickRowCount; r++) {
+      let brickX = (c * (brickW + brickPadding)) + brickOffsetLeft + brickCenterShift;
+      let brickY = (r * (brickH + brickPadding)) + brickOffsetTop;
+      bricks[c][r].x = brickX;
+      bricks[c][r].y = brickY;
+    }
+  }
+}
+
+function runGameLoop() {
+  if (!gameOver) {
+    clearCanvas();
+    respondToUserInput();
+    moveSprites();
+    drawFrame();
+    checkForBrickCollisions();
+    checkForBoundaryCollisions();
+    checkForPaddleCollision();
+    checkForLifeLossConditions();
+    checkForGameOver();
+    requestAnimationFrame(runGameLoop);
+  }
+}
+
+function respondToUserInput() {
+  if (rightPressed) {
+    if (paddleX + paddleW < canvasW) {
+      paddleX += paddleDX;
+    }
+  }
+  if (leftPressed) {
+    if (paddleX > 0) {
+      paddleX -= paddleDX;
+    }
+  }
+}
+
+function moveSprites() {
+  ballX += dx;
+  ballY += dy;
+}
+
+function drawFrame() {
+  drawScore();
+  drawHighScore();
+  drawLives();
+  drawSprites();
+}
+
+function drawScore() {
+  let msg = `Score: ${score}`;
+  let x = 10;
+  drawMessageToScreen(msg, x, uiY, left, uiFont, uiTextColour);
+}
+
+function drawLives() {
+  let msg = `Lives: ${lives-1}`;
+  let x = canvasW - 10;
+  drawMessageToScreen(msg, x, uiY, right, uiFont, uiTextColour);
+}
+
+function drawSprites() {
+  drawBricks();
+  drawPaddle();
+  drawBall();
+}
+
+function drawBricks() {
+  for (let c = 0; c < brickColumnCount; c++) {
+    for (var r = 0; r < brickRowCount; r++) {
+      let brick = bricks[c][r];
+      let x = brick.x;
+      let y = brick.y;
+      let status = brick.status;
+      if (status > 0) {
+        drawBrick(x, y);
+      }
+    }
+  }
+}
+
+function drawBrick(x, y) {
+  drawRectangle(x, y, brickW, brickH);
+}
+
+function drawPaddle() {
+  drawRectangle(paddleX, paddleY, paddleW, paddleH);
+}
+
+function drawBall() {
+  drawCircle(ballX, ballY, ballRadius);
+}
+
+function checkForBrickCollisions() {
+  for (let c = 0; c < brickColumnCount; c++) {
+    for (let r = 0; r < brickRowCount; r++) {
+      let brick = bricks[c][r];
+      if (brick.status > 0) {
+        if (ballX > brick.x && ballX < brick.x + brickW) {
+          if (ballY > brick.y && ballY < brick.y + brickH) {
+            score += 1;
+            brick.status = 0;
+            dy = -dy
+          }
+        }
+      }
+    }
+  }
+}
+
+function checkForBoundaryCollisions() {
+  if (ballX + ballRadius > canvasW || ballX - ballRadius < 0) {
+    dx = -dx;
+  } else if (ballY - ballRadius < 0) {
+    dy = -dy;
+  }
+}
+
+function checkForPaddleCollision() {
+  if (ballY + ballRadius + paddleH > canvasH && ballY + ballRadius < canvasH && dy > 0) {
+    if (ballX >= paddleX && ballX <= paddleX + paddleW) {
+      dy = -dy;
+      if ((dx < 0 && leftPressed) || (dx > 0 && rightPressed)) {
+        dx = dx * 1.3;
+      } else if ((dx < 0 && rightPressed) || (dx > 0 && leftPressed)) {
+        dx = dx * 0.7;
+      }
+    }
+  }
+}
+
+function checkForLifeLossConditions() {
+  if (ballY - ballRadius > canvasH) {
+    lives -= 1;
+    resetAfterLifeLost();
+  }
+}
+
+function resetAfterLifeLost() {
+  leftPressed = false;
+  rightPressed = false;
+  ballX = generateRandomXStartValue();
+  ballY = ballStartY;
+  dx = startDelta;
+  dy = -startDelta;
+}
+
+function checkForGameOver() {
+  if (lives == 0) {
+    gameOver = true;
+    gameState = machine.transition(gameState, 'step'); // gameOver
+  }
+}
+
+function stopGame() {
+  removeUserInputListeners();
+  resetGameStartSettings();
+}
+
+function resetGameStartSettings() {
+  if (score > highScore) {
+    highScore = score;
+  }
+  score = scoreStart;
+  lives = startLives;
+  leftPressed = false;
+  rightPressed = false;
+  ballX = generateRandomXStartValue();
+  ballY = ballStartY;
+  dx = startDelta;
+  dy = -startDelta;
+  paddleX = startPaddleX
+  paddleY = startPaddleY
+  paddleDX = startPaddleDX;
+}
+
+/*
+ * Game Over Screen
+ */
+function runGameOverScreen() {
+  drawMessageToCenterOfScreen(gameOverTitle, -20);
+  drawMessageToCenterOfScreen(replayIntructions, 20);
+  addGameOverScreenListeners();
+}
+
+function addGameOverScreenListeners() {
+  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+function clearGameOverScreen() {
+  removeGameOverScreenListeners();
+  clearCanvas();
+}
+
+function removeGameOverScreenListeners() {
+  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
+}
+
+/*
+ * Helper methods
+ */
+function drawMessageToScreen(msg, x, y, align, font, colour) {
+  ctx.textAlign = align;
+  ctx.font = font;
+  ctx.fillStyle = colour;
+  ctx.fillText(msg, x, y);
+}
+
+function drawMessageToCenterOfScreen(msg, shiftY) {
+  let x = canvasW / 2;
+  let y = (canvasH / 2) + shiftY;
+  drawMessageToScreen(msg, x, y, center, titleFont, titleTextColour)
+}
+
+function drawRectangle(x, y, w, h) {
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.fillStyle = spriteColour;
+  ctx.fill();
+  ctx.closePath();
+}
+
+function drawCircle(x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 2 * Math.PI);
+  ctx.fillStyle = spriteColour;
+  ctx.fill();
+  ctx.closePath();
+}
+
+function transitionStateMachineOnEnter(e) {
+  if (e.key == 'Enter') {
+    gameState = machine.transition(gameState, 'step');
+  }
+}
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvasW, canvasH);
+}
+
+function generateRandomXStartValue() {
+  return (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
+}
+
+function generateRandomSign() {
+  return Math.round(Math.random()) * 2 - 1;
+}
 
 /*
  * STATE MACHINE:
@@ -74,7 +435,7 @@ const machine = createMachine({
         runStartScreen();
       },
       onExit() {
-        stopStartScreen();
+        clearStartScreen();
       }
     },
     transitions: {
@@ -86,12 +447,10 @@ const machine = createMachine({
   gameRunning: {
     actions: {
       onEnter() {
-        gameOver = false;
-        runGameLoop();
+        runGame();
       },
       onExit() {
-        gameOver = true;
-        resetBall();
+        stopGame();
       }
     },
     transitions: {
@@ -106,7 +465,7 @@ const machine = createMachine({
         runGameOverScreen();
       },
       onExit() {
-        stopGameOverScreen();
+        clearGameOverScreen();
       }
     },
     transitions: {
@@ -116,131 +475,6 @@ const machine = createMachine({
     }
   }
 });
-
-/*
- * Helper methods
- */
-function transitionStateMachineOnEnter(e) {
-  if (e.key == 'Enter') {
-    gameState = machine.transition(gameState, 'step');
-  }
-}
-
-function drawMessageToScreen(msg, shiftY) {
-  let x = canvasW / 2;
-  let y = (canvasH / 2) + shiftY;
-  ctx.textAlign = 'center';
-  ctx.font = '24px Arial';
-  ctx.fillStyle = textColor;
-  ctx.fillText(msg, x, y);
-}
-
-/*
- * Start Screen
- */
-function runStartScreen() {
-  drawMessageToScreen(gameTitle, -20);
-  drawMessageToScreen(startIntructions, 20);
-  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
-function stopStartScreen() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
-/*
- * Game Loop
- */
-
-function movePaddle(e) {
-  if (e.key == 'Right' || e.key == 'ArrowRight') {
-    console.log('right paddle');
-  } else if (e.key == 'Left' || e.key == 'ArrowLeft') {
-    console.log('left paddle');
-  }
-}
-
-
-
-function resetBall() {
-  randX = (Math.floor(Math.random() * (canvasW - 4 * ballRadius))) + ballRadius;
-  randSign = Math.round(Math.random()) * 2 - 1;
-  ballX = randX;
-  ballY = canvasH - ballRadius;
-  ballTopEdge = ballY - ballRadius;
-  ballRightEdge = ballX + ballRadius;
-  ballBottomEdge = ballY + ballRadius;
-  ballLeftEdge = ballX - ballRadius;
-  dx = startDX * randSign;
-  dy = -startDX;
-}
-
-function drawBall() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  ctx.beginPath();
-  ctx.arc(ballX, ballY, 10, 0, 2 * Math.PI);
-  ctx.fillStyle = spriteColor;
-  ctx.fill();
-  ctx.closePath();
-}
-
-function drawPaddle() {
-  ctx.beginPath();
-  ctx.rect(paddleX, paddleY, paddleW, paddleH);
-  ctx.fillStyle = spriteColor;
-  ctx.fill();
-  ctx.closePath();
-}
-
-function moveBall() {
-  ballX += dx;
-  ballY += dy;
-  ballTopEdge = ballY - ballRadius;
-  ballRightEdge = ballX + ballRadius;
-  ballBottomEdge = ballY + ballRadius;
-  ballLeftEdge = ballX - ballRadius;
-}
-
-function movePaddle() {
-  //
-}
-
-function checkForBoundaryCollision() {
-  if (ballRightEdge >= canvasW || ballLeftEdge <= 0) {
-    dx = -dx;
-  } else if (ballTopEdge <= 0) {
-    dy = -dy;
-  } else if (ballBottomEdge >= canvasH) {
-    gameOver = true;
-    gameState = machine.transition(gameState, 'step');
-  }
-}
-
-function runGameLoop() {
-  drawBall();
-  drawPaddle();
-  moveBall();
-  movePaddle();
-  checkForBoundaryCollision();
-  if (!gameOver) {
-    requestAnimationFrame(runGameLoop);
-  }
-}
-
-/*
- * Game Over Screen
- */
-function runGameOverScreen() {
-  drawMessageToScreen(gameOverTitle, -20);
-  drawMessageToScreen(replayIntructions, 20);
-  document.addEventListener('keydown', transitionStateMachineOnEnter, true);
-}
-
-function stopGameOverScreen() {
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  document.removeEventListener('keydown', transitionStateMachineOnEnter, true);
-}
 
 /*
  * Start State machine running, and set to ready postion

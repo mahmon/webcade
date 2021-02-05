@@ -19,7 +19,7 @@ const spriteColour = '#dd1111';
 const titleTextColour = '#dddd11';
 const uiTextColour = '#00aaff';
 
-const startDX = 3.0;
+const startDX = 1.0;
 const startLives = 3;
 
 // Game Start Settings
