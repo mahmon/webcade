@@ -7,15 +7,17 @@ const gameTitle = 'BREAKOUT';
 const gameOverTitle = 'GAME OVER';
 const startIntructions = 'Press Enter to play';
 const replayIntructions = 'Press Enter to play again';
+const titleFont = '24px sans-serif';
+const uiFont = '14px sans-serif';
 
-const titleFont = '24px Arial';
-const uiFont = '14px Arial';
 const uiY = 20;
 const left = 'left';
 const center = 'center';
 const right = 'right';
 
 const spriteColour = '#dd1111';
+const spriteColour2 = '#dd4411';
+const spriteColour3 = '#dd6611';
 const titleTextColour = '#dddd11';
 const uiTextColour = '#00aaff';
 
@@ -25,7 +27,7 @@ const highScoreStart = 0;
 const startLives = 3;
 
 const ballRadius = 10;
-const ballStartY = canvasH - ballRadius;
+const ballStartY = canvasH + ballRadius;
 const startDelta = 1.0;
 
 const paddleW = 80;
@@ -34,6 +36,8 @@ const startPaddleX = (canvasW - paddleW) / 2;
 const startPaddleY = canvasH - paddleH;
 const startPaddleDX = 5 * startDelta;
 
+const brickColumnCount = 7;
+const brickRowCount = 3;
 const brickW = 55;
 const brickH = 20;
 const brickPadding = 10;
@@ -42,36 +46,30 @@ const brickOffsetLeft = 10;
 const brickCenterShift = 8;
 
 // Game Start Settings
-let gameOver = gameOverStart;
-let score = scoreStart;
-let highScore = highScoreStart;
-let lives = startLives;
+let frame;
+let gameOver;
+let score;
+let highScore;
+let lives;
+let level;
+setGeneralGameSettings();
 
-let leftPressed = false;
-let rightPressed = false;
+let leftPressed;
+let rightPressed;
+let paddleX
+let paddleY
+let paddleDX;
+resetPaddleSettings();
 
-let ballX = generateRandomXStartValue();
-let ballY = ballStartY;
-let dx = startDelta * generateRandomSign();
-let dy = -startDelta;
+let ballX;
+let ballY;
+let dx;
+let dy;
+resetBallSettings();
 
-let paddleX = startPaddleX
-let paddleY = startPaddleY
-let paddleDX = startPaddleDX;
-
-let brickColumnCount = 7;
-let brickRowCount = 3;
-let bricks = [];
-for (let c = 0; c < brickColumnCount; c++) {
-  bricks[c] = [];
-  for (let r = 0; r < brickRowCount; r++) {
-    bricks[c][r] = {
-      x: 0,
-      y: 0,
-      status: 1
-    }
-  }
-}
+let numOfVisibleBricks;
+let bricks;
+resetBrickSettings();
 
 /*
  * Start Screen
@@ -82,15 +80,15 @@ function runStartScreen() {
   addStartScreenListeners();
 }
 
-function drawWelcomeMessage() {
-  drawMessageToCenterOfScreen(gameTitle, -20);
-  drawMessageToCenterOfScreen(startIntructions, 20);
-}
-
 function drawHighScore() {
   let msg = `High Score: ${highScore}`;
   let x = canvasW / 2;
   drawMessageToScreen(msg, x, uiY, center, uiFont, uiTextColour);
+}
+
+function drawWelcomeMessage() {
+  drawMessageToCenterOfScreen(gameTitle, -20);
+  drawMessageToCenterOfScreen(startIntructions, 20);
 }
 
 function addStartScreenListeners() {
@@ -110,9 +108,9 @@ function clearStartScreen() {
  * Game Loop
  */
 function runGame() {
-  gameOver = false;
+  gameOver = false
+  frame = 0;
   addUserInputListeners();
-  generateXYValuesForBrickArray();
   runGameLoop();
 }
 
@@ -142,28 +140,23 @@ function respondToKeyUp(e) {
   }
 }
 
-function generateXYValuesForBrickArray() {
-  for (let c = 0; c < brickColumnCount; c++) {
-    for (var r = 0; r < brickRowCount; r++) {
-      let brickX = (c * (brickW + brickPadding)) + brickOffsetLeft + brickCenterShift;
-      let brickY = (r * (brickH + brickPadding)) + brickOffsetTop;
-      bricks[c][r].x = brickX;
-      bricks[c][r].y = brickY;
-    }
-  }
-}
 
 function runGameLoop() {
+  clearCanvas();
+  if (frame < 100) {
+    drawMessageToCenterOfScreen(`Level ${level}`, 0);
+  }
+  drawFrame();
+  moveSprites();
+  respondToUserInput();
+  checkForBrickCollisions();
+  checkForBoundaryCollisions();
+  checkForPaddleCollision();
+  checkForLifeLossConditions();
+  checkForNoBricksLeft();
+  checkForGameOver();
   if (!gameOver) {
-    clearCanvas();
-    respondToUserInput();
-    moveSprites();
-    drawFrame();
-    checkForBrickCollisions();
-    checkForBoundaryCollisions();
-    checkForPaddleCollision();
-    checkForLifeLossConditions();
-    checkForGameOver();
+    frame++;
     requestAnimationFrame(runGameLoop);
   }
 }
@@ -219,14 +212,20 @@ function drawBricks() {
       let y = brick.y;
       let status = brick.status;
       if (status > 0) {
-        drawBrick(x, y);
+        let colour;
+        if (r == 1) {
+          colour = spriteColour2;
+        } else if (r == 2) {
+          colour = spriteColour3;
+        }
+        drawBrick(x, y, colour);
       }
     }
   }
 }
 
-function drawBrick(x, y) {
-  drawRectangle(x, y, brickW, brickH);
+function drawBrick(x, y, colour) {
+  drawRectangle(x, y, brickW, brickH, colour);
 }
 
 function drawPaddle() {
@@ -244,7 +243,14 @@ function checkForBrickCollisions() {
       if (brick.status > 0) {
         if (ballX > brick.x && ballX < brick.x + brickW) {
           if (ballY > brick.y && ballY < brick.y + brickH) {
-            score += 1;
+            if (r == 0) {
+              score += 3;
+            } else if (r == 1) {
+              score += 2;
+            } else if (r == 2) {
+              score += 1;
+            }
+            numOfVisibleBricks -= 1;
             brick.status = 0;
             dy = -dy
           }
@@ -283,12 +289,20 @@ function checkForLifeLossConditions() {
 }
 
 function resetAfterLifeLost() {
-  leftPressed = false;
-  rightPressed = false;
-  ballX = generateRandomXStartValue();
-  ballY = ballStartY;
-  dx = startDelta;
-  dy = -startDelta;
+  resetBallSettings();
+}
+
+function checkForNoBricksLeft() {
+  if (numOfVisibleBricks == 0) {
+    frame = 0;
+    resetAfterNoBricksLeft();
+  }
+}
+
+function resetAfterNoBricksLeft() {
+  level += 1;
+  resetBallSettings();
+  resetBrickSettings();
 }
 
 function checkForGameOver() {
@@ -307,17 +321,10 @@ function resetGameStartSettings() {
   if (score > highScore) {
     highScore = score;
   }
-  score = scoreStart;
-  lives = startLives;
-  leftPressed = false;
-  rightPressed = false;
-  ballX = generateRandomXStartValue();
-  ballY = ballStartY;
-  dx = startDelta;
-  dy = -startDelta;
-  paddleX = startPaddleX
-  paddleY = startPaddleY
-  paddleDX = startPaddleDX;
+  resetGeneralGameSettings();
+  resetPaddleSettings();
+  resetBallSettings();
+  resetBrickSettings();
 }
 
 /*
@@ -345,6 +352,68 @@ function removeGameOverScreenListeners() {
 /*
  * Helper methods
  */
+function setGeneralGameSettings() {
+  gameOver = gameOverStart;
+  score = scoreStart;
+  highScore = highScoreStart;
+  lives = startLives;
+  level = 1;
+}
+
+function resetGeneralGameSettings() {
+  gameOver = gameOverStart;
+  score = scoreStart;
+  lives = startLives;
+  level = 1;
+}
+
+function resetPaddleSettings() {
+  leftPressed = false;
+  rightPressed = false;
+  paddleX = startPaddleX
+  paddleY = startPaddleY
+  paddleDX = startPaddleDX;
+}
+
+function resetBallSettings() {
+  ballX = generateRandomXStartValue();
+  ballY = ballStartY;
+  dx = (startDelta + (level / 2));
+  dy = -dx;
+  dx = dx * generateRandomSign();
+}
+
+function resetBrickSettings() {
+  numOfVisibleBricks = brickColumnCount * brickRowCount;
+  bricks = [];
+  createNewBrickArray();
+}
+
+function createNewBrickArray() {
+  for (let c = 0; c < brickColumnCount; c++) {
+    bricks[c] = [];
+    for (let r = 0; r < brickRowCount; r++) {
+      bricks[c][r] = {
+        x: 0,
+        y: 0,
+        status: 1
+      }
+    }
+  }
+  generateXYValuesForBricksInArray();
+}
+
+function generateXYValuesForBricksInArray() {
+  for (let c = 0; c < brickColumnCount; c++) {
+    for (var r = 0; r < brickRowCount; r++) {
+      let brickX = (c * (brickW + brickPadding)) + brickOffsetLeft + brickCenterShift;
+      let brickY = (r * (brickH + brickPadding)) + brickOffsetTop;
+      bricks[c][r].x = brickX;
+      bricks[c][r].y = brickY;
+    }
+  }
+}
+
 function drawMessageToScreen(msg, x, y, align, font, colour) {
   ctx.textAlign = align;
   ctx.font = font;
@@ -358,10 +427,14 @@ function drawMessageToCenterOfScreen(msg, shiftY) {
   drawMessageToScreen(msg, x, y, center, titleFont, titleTextColour)
 }
 
-function drawRectangle(x, y, w, h) {
+function drawRectangle(x, y, w, h, colour) {
   ctx.beginPath();
   ctx.rect(x, y, w, h);
-  ctx.fillStyle = spriteColour;
+  if (colour) {
+    ctx.fillStyle = colour;
+  } else {
+    ctx.fillStyle = spriteColour;
+  }
   ctx.fill();
   ctx.closePath();
 }
