@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+
+  <p id="demo"></p>
+
+  <script>
+    let score = 999;
+    let highScoresObj;
+
+    //Load high scores in the ready state
+    let phpReadURL = 'load_high_scores.php?file=high_scores.txt';
+    makeAjaxRequest(phpReadURL, loadHighScores);
+
+    function loadHighScores(xhttp) {
+      let result = xhttp.responseText;
+      highScoresObj = JSON.parse(result);
+      highScore = highScoresObj.breakout;
+      console.log(highScoresObj);
+      console.log(`highScore: ${highScore}`);
+    }
+
+    // Save off new high score at game over
+    if (score > highScore) {
+      highScoresObj.breakout = score;
+      let high_scores_str = JSON.stringify(highScoresObj);
+      let phpWriteURL = 'save_high_scores.php?data=' + high_scores_str;
+      makeAjaxRequest(phpWriteURL, saveHighScores);
+    }
+
+    function saveHighScores(xhttp) {
+      let result = xhttp.responseText;
+      highScoresObj = JSON.parse(result);
+      highScore = highScoresObj.breakout;
+      console.log(highScoresObj);
+      console.log(`highScore: ${highScore}`);
+      // update UI
+    }
+
+    // ajax request helper function
+    function makeAjaxRequest(url, callingFunction) {
+      let xhttp;
+      xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          callingFunction(this);
+        }
+      };
+      //xhttp.open('GET', url, true); // async
+      xhttp.open('GET', url, false);
+      xhttp.send();
+    }
+  </script>
+
+</body>
+
+</html>
