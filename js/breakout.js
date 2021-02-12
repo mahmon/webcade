@@ -50,6 +50,7 @@ let frame;
 let gameOver;
 let score;
 let highScore;
+let highScoresObj;
 let lives;
 let level;
 setGeneralGameSettings();
@@ -74,8 +75,13 @@ resetBrickSettings();
 /*
  * Start Screen
  */
+
+function loadHighScores() {
+  let phpReadURL = 'js/load_high_scores.php?file=high_scores.txt';
+  makeAjaxRequest(phpReadURL, highScoresViaAJAX);
+}
+
 function runStartScreen() {
-  drawHighScore();
   drawWelcomeMessage();
   addStartScreenListeners();
 }
@@ -319,7 +325,7 @@ function stopGame() {
 
 function resetGameStartSettings() {
   if (score > highScore) {
-    highScore = score;
+    updateHighScore();
   }
   resetGeneralGameSettings();
   resetPaddleSettings();
@@ -327,10 +333,20 @@ function resetGameStartSettings() {
   resetBrickSettings();
 }
 
+function updateHighScore() {
+  highScore = score;
+  highScoresObj.breakout = score;
+  let high_scores_str = JSON.stringify(highScoresObj);
+  let phpWriteURL = 'js/save_high_scores.php?data=' + high_scores_str;
+  makeAjaxRequest(phpWriteURL, highScoresViaAJAX);
+}
+
 /*
  * Game Over Screen
  */
 function runGameOverScreen() {
+  ctx.clearRect(canvasW / 2 - 50, 8, 100, brickH);
+  drawHighScore();
   drawMessageToCenterOfScreen(gameOverTitle, -20);
   drawMessageToCenterOfScreen(replayIntructions, 20);
   addGameOverScreenListeners();
@@ -352,6 +368,12 @@ function removeGameOverScreenListeners() {
 /*
  * Helper methods
  */
+function highScoresViaAJAX(xhttp) {
+  let result = xhttp.responseText;
+  highScoresObj = JSON.parse(result);
+  highScore = highScoresObj.breakout;
+}
+
 function setGeneralGameSettings() {
   gameOver = gameOverStart;
   score = scoreStart;
@@ -465,6 +487,18 @@ function generateRandomSign() {
   return Math.round(Math.random()) * 2 - 1;
 }
 
+function makeAjaxRequest(url, callingFunction) {
+  let xhttp;
+  xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      callingFunction(this);
+    }
+  };
+  xhttp.open('GET', url, true);
+  xhttp.send();
+}
+
 /*
  * STATE MACHINE:
  * Manage game states between off, ready, gameRunning and gameOver
@@ -494,7 +528,9 @@ const machine = createMachine({
   off: {
     actions: {
       onEnter() {},
-      onExit() {}
+      onExit() {
+        loadHighScores();
+      }
     },
     transitions: {
       step: {
